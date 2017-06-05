@@ -5,12 +5,15 @@ project(Inciter CXX)
 # Include function for adding Charm++ modules
 include(charm)
 
+# TODO: Should these AMR files be listed in ./AMR/CMakeList.txt
 add_library(Inciter
             Transporter.C
             Partitioner.C
             Carrier.C
             FluxCorrector.C
-)
+            AMR/mesh_adapter.h
+            AMR/util.cpp
+            )
 
 addCharmModule( "transporter" "Inciter" )
 addCharmModule( "partitioner" "Inciter" )
