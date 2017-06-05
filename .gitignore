@@ -2,3 +2,5 @@
 *sw?
 /build
 /install
+*tags
+*.idea
