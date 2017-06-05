@@ -919,7 +919,7 @@ namespace inciter {
             AMR::mesh_adapter_t* mesh_adapter = new AMR::mesh_adapter_t();
             mesh_adapter->init(m_tetinpoel, count);
 
-            //mesh_adapter->refiner->uniform_refinement();
+            mesh_adapter->uniform_refinement();
 
             // Generate unique edges (nodes connected to nodes)?
 
@@ -1005,6 +1005,8 @@ namespace inciter {
                     en[ {{C,D}} ] = CD;
                 }
             }
+
+            std::cout << "Nnode " << nnode << std::endl;
 
             delete mesh_adapter;
 
