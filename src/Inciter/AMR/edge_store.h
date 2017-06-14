@@ -5,7 +5,17 @@ namespace AMR {
 
     class edge_store_t {
         public:
-            std::map<std::string, Edge_Refinement> edges;
+            // TODO: convert this to an unordered map with a custom hash (can lift from Quinoa)
+            edges_t edges;
+
+            // Node connectivity does this any way, but in a slightly less efficient way
+            // Maps the edge to the child node which splits it
+                // This was added retrospectivley to support the operation "for
+                // edge formed of initial nodes {A,B}, what node(s) were added
+                // between them"
+                // NOTE: At some point, this could probably be deleted..
+                // NOTE: This is only mainted by split.
+            //std::map<edge_t, size_t> children;
 
             size_t size()
             {
@@ -23,11 +33,12 @@ namespace AMR {
              */
             void split(size_t A, size_t B, size_t AB, Edge_Lock_Case lock_case)
             {
-                generate(A,AB, lock_case);
-                generate(B,AB, lock_case);
+                generate(A, AB, lock_case);
+                generate(B, AB, lock_case);
 
+                //children.insert( std::pair<edge_t, size_t>(edge_t(A,B), AB));
                 // Generate pertinent keys
-                std::string keyAB = nodes_to_key(A, B);
+                //edge_t keyAB = nodes_to_key(A, B);
 
                 // NOTE: This isn't explicitly needed in the paper, and may be
                     // implicitly dealt with somewhere?
@@ -45,7 +56,7 @@ namespace AMR {
             {
                 assert(A != B);
                 // Generate key
-                std::string keyAB = nodes_to_key(A, B);
+                edge_t keyAB = nodes_to_key(A, B);
                 //Create refined edge
                 Edge_Refinement edgeAB = Edge_Refinement(A, B, 0.00, false,
                         false, false, lock_case);
@@ -53,7 +64,7 @@ namespace AMR {
                 add(keyAB, edgeAB);
             }
 
-            bool exists(std::string key)
+            bool exists(edge_t key)
             {
                 if (edges.find(key) != edges.end())
                 {
@@ -69,19 +80,19 @@ namespace AMR {
              *
              * @return A reference to the fetched edge
              */
-            Edge_Refinement& get(std::string key)
+            Edge_Refinement& get(edge_t key)
             {
                 //trace_out << "get edge " << key << std::endl;
                 assert( exists(key) );
                 return edges.at(key);
             }
 
-            Edge_Lock_Case lock_case(std::string key)
+            Edge_Lock_Case lock_case(edge_t key)
             {
                 return get(key).lockCase;
             }
 
-            void erase(std::string key)
+            void erase(edge_t key)
             {
                 edges.erase(key);
             }
@@ -94,25 +105,29 @@ namespace AMR {
              *
              * Note: This tolerate the addition of duplicate edges
              */
-            void add(std::string key, Edge_Refinement e)
+            void add(edge_t key, Edge_Refinement e)
             {
-                trace_out << "Adding edge " << key << std::endl;
                 // Add edge if it doesn't exist (default behavior of insert)
-                edges.insert( std::pair<std::string, Edge_Refinement>(key, e));
+                edges.insert( std::pair<edge_t, Edge_Refinement>(key, e));
 
                 // TODO: It may be worth adding a check here to ensure if we're
                 // trying to add a new edge that exists it should contain the
                 // same data
             }
 
+            static edge_t nodes_to_key(size_t A, size_t B)
+            {
+                return edge_t(A,B);
+            }
+
             /**
              * @brief Function to build a  string key from two node ids
              * NOTE: Regardless of order of arguments, the same key will be generated
              */
-            static std::string nodes_to_key(size_t A, size_t B)
-            {
-                return std::to_string(std::min(A,B)) + KEY_DELIM + std::to_string(std::max(A,B));
-            }
+            //static std::string nodes_to_key(size_t A, size_t B)
+            //{
+                //return std::to_string(std::min(A,B)) + KEY_DELIM + std::to_string(std::max(A,B));
+            //}
 
             /**
              * @brief function to take the nodes representing a face
@@ -133,7 +148,7 @@ namespace AMR {
                 size_t B = face_ids[1];
                 size_t C = face_ids[2];
 
-                std::string key = nodes_to_key(A,B);
+                edge_t key = nodes_to_key(A,B);
                 key_list[0] = key;
 
                 key = nodes_to_key(A,C);
@@ -155,8 +170,8 @@ namespace AMR {
                 for (size_t i = 0; i < ids.size(); i++)
                 {
                     node_pair_t pair = ids[i];
-                    std::string key = nodes_to_key(pair[0], pair[1]);
-                    trace_out << "Marking " << key << std::endl;
+                    edge_t key = nodes_to_key(pair[0], pair[1]);
+
                     mark_for_refinement(key);
                     trace_out << get(key).needs_refining << std::endl;
                 }
@@ -170,7 +185,7 @@ namespace AMR {
              *
              * @param key The edge key to mark as refinement
              */
-            void mark_for_refinement(std::string key)
+            void mark_for_refinement(edge_t key)
             {
                     assert( exists(key) );
                     get(key).needs_refining = true;
@@ -181,7 +196,7 @@ namespace AMR {
              *
              * @param key The key representing the edge to unmark
              */
-            void unmark_for_refinement(std::string key)
+            void unmark_for_refinement(edge_t key)
             {
                     assert( exists(key) );
                     get(key).needs_refining = false;
@@ -192,12 +207,12 @@ namespace AMR {
                 for (size_t i = 0; i < ids.size(); i++)
                 {
                     node_pair_t pair = ids[i];
-                    std::string key = nodes_to_key(pair[0], pair[1]);
-                    trace_out << "Marking " << key << std::endl;
+                    edge_t key = nodes_to_key(pair[0], pair[1]);
+
                     mark_edge_for_derefinement(key);
                 }
             }
-            void mark_edge_for_derefinement(std::string key) {
+            void mark_edge_for_derefinement(edge_t key) {
                     get(key).needs_derefining = true;
             }
 
@@ -222,7 +237,7 @@ namespace AMR {
                 size_t C = tet[2];
                 size_t D = tet[3];
 
-                std::string key = "";
+                edge_t key;
 
                 key = nodes_to_key(A,B);
                 key_list[0] = key;
@@ -246,26 +261,6 @@ namespace AMR {
             }
 
             /**
-             * @brief function to take an edge_list_t (strings) and
-             * convert them to ids (size_t)
-             *
-             * This is useful when the user wants the numerical
-             * representation of the edge nodes not a string one
-             *
-             * @param edge_list A edge_list_t which represents an edge
-             *
-             * @return A size_t conversion of the inputted edge_list_t
-             */
-            static edge_list_ids_t generate_edge_ids_from_edge_list(edge_list_t edge_list) {
-                edge_list_ids_t edge_list_ids;
-                for (size_t i = 0; i < NUM_TET_EDGES; i++)
-                {
-                    edge_list_ids[i] = std::stoul (edge_list[i],nullptr,0);
-                }
-                return edge_list_ids;
-            }
-
-            /**
              * @brief Helper debug function to print edge information
              */
             void print() {
@@ -277,6 +272,51 @@ namespace AMR {
                     std::endl;
                 }
             }
+
+            void replace(size_t old_id, size_t new_id)
+            {
+                for (const auto& kv : edges)
+                {
+                    // Find all slots which have the id in the key
+                    if (false) //  TODO: Implement this
+                    {
+                        // Cache value
+                        auto value = kv.second;
+                        edge_t key = kv.first;
+
+                        // Find the bit of the old key we need to keep
+                        size_t remainder_key = 0; // TODO:
+
+                        // Delete them
+                        erase(key);
+
+                        // Build new key
+                        edge_t new_key = nodes_to_key(new_id, remainder_key);
+
+                        // Re add with new key
+                        add(new_key, value);
+                    }
+
+                }
+            }
+
+            /*
+            // TODO: Document this
+            // If this returns 0, it couldn't find it. 0 is a really unlikely
+            // added node id..
+            size_t find_intermediate_nodes(size_t A, size_t B)
+            {
+                size_t id = 0;
+                edge_t key = nodes_to_key(A, B);
+
+                if (children.find(key) != children.end())
+                {
+                    id = children[key];
+                }
+
+                return id;
+            }
+            */
 
 
     };

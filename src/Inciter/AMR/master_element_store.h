@@ -21,7 +21,11 @@ namespace AMR {
              * @param parent_id The id of the parent element
              *
              * @return The id of the added element
-             */
+            */
+            // TODO: These add methods could probably be much tidier. The
+            // current none reliance on default input values is nice, as it
+            // means that we don't have to do any checks on if a valid value
+            // was passed for the base case..
             size_t add
             (
                  size_t element_number,
@@ -51,7 +55,7 @@ namespace AMR {
              * this element
              *
              * @return The id of the added element
-             */
+            */
             size_t add(
                  size_t element_number,
                  Refinement_Case refinement_case
@@ -97,9 +101,30 @@ namespace AMR {
              *
              * @return The master_element which represents the corresponding tet
              */
-            Refinement_State& get(size_t element_id)
+            Refinement_State& get(size_t id)
             {
-                return master_elements.at(element_id);
+                assert( exists(id) );
+                return master_elements.at(id);
+            }
+
+            /**
+             * @brief Function to check if master element entry exists. Useful
+             * for debugging access to invalid elements, or trying to re-create 
+             * an element which already exists
+             *
+             * @param id Id to check
+             *
+             * @return Bool stating if the element already exists
+             */
+            bool exists(size_t id)
+            {
+                auto f = master_elements.find(id);
+                if (f != master_elements.end())
+                {
+                    trace_out << "master_elements " << id << " exists." << std::endl;
+                    return true;
+                }
+                return false;
             }
 
             // TODO: document this
@@ -119,6 +144,40 @@ namespace AMR {
              */
             size_t size() {
                 return master_elements.size();
+            }
+
+            // TODO: Document
+            void add_child(size_t parent_id, size_t child_id)
+            {
+                get(parent_id).children.push_back(child_id);
+                get(parent_id).num_children++;
+                assert( get(parent_id).num_children <= 8);
+            }
+
+            size_t get_child_id(size_t parent_id, size_t offset)
+            {
+                assert(offset < get(parent_id).children.size());
+                return get(parent_id).children[offset];
+            }
+
+            void replace(size_t old_id, size_t new_id)
+            {
+                // Swap id out in map
+                auto i = master_elements.find(old_id);
+                auto value = i->second;
+                master_elements.erase(i);
+                master_elements[new_id] = value;
+
+                // Replace child reference too
+                auto children = get(new_id).children;
+                std::replace (children.begin(), children.end(), old_id, new_id);
+
+                // Iterate over children and update their parent
+                for (auto c : children)
+                {
+                    get(c).parent_id = new_id;
+                }
+
             }
 
     };

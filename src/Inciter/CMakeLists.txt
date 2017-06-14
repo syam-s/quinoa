@@ -13,6 +13,7 @@ add_library(Inciter
             FluxCorrector.C
             AMR/mesh_adapter.h
             AMR/util.cpp
+            AMR/edge.cpp
             )
 
 addCharmModule( "transporter" "Inciter" )

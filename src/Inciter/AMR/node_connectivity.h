@@ -4,6 +4,12 @@
 #include <vector>
 
 namespace AMR {
+
+    /**
+     * @brief This class stores the connectivity of the node. Simply what this
+     * means is that it just a vector of node ids. The value of the vector is
+     * the two nodes the new node joins, and the index is the node id
+     */
     class node_connectivity_t {
 
         private:
@@ -11,7 +17,7 @@ namespace AMR {
 
         public:
 
-            node_connectivity_t() { } // default cons
+            //node_connectivity_t() { } // default cons
 
             /**
              * @brief Method to add initial nodes to the store
@@ -22,6 +28,10 @@ namespace AMR {
             {
                 for (size_t i = 0; i < initial_size; i++)
                 {
+                    // These can initially be 0 as initial nodes don't join any
+                    // two others.. this could be updated to track
+                    // intermediates, but this currently tracks "added" nodes
+                    // nicely
                     add(0,0);
                 }
             }
@@ -36,6 +46,13 @@ namespace AMR {
                 return nodes.size();
             }
 
+            /**
+             * @brief Getter into node storage
+             *
+             * @param id Id of the node to get
+             *
+             * @return The node_pair at the given id
+             */
             node_pair_t get(size_t id)
             {
                 return nodes.at(id);
@@ -81,6 +98,8 @@ namespace AMR {
                 }
             }
 
+            // TODO: Document this
+            // Int becasue it's signed..
             int find(size_t A, size_t B)
             {
                 size_t min = std::min(A,B);
@@ -98,11 +117,15 @@ namespace AMR {
                 return -1;
             }
 
+            // TODO: Document this
             size_t add(size_t A, size_t B)
             {
                 if (A != 0 || B != 0)
                 {
                     assert(A != B);
+                    // TODO: Abstract to exists method. (Could have one for id,
+                    // as well as one for val)
+
                     // check if already exists
                     int f = find(A,B);
                     if (f != -1) {
@@ -111,17 +134,20 @@ namespace AMR {
                     }
                 }
 
-                std::cout << " add a = " <<  A << " b = " << B << std::endl;
                 nodes.push_back( {{std::min(A,B), std::max(A,B)}} );
+                std::cout << " add " << size()-1 << " a = " <<  A << " b = " << B << std::endl;
                 return size()-1;
             }
 
+            /**
+             * @brief Print connectivity a id: a-b
+             */
             void print()
             {
                 std::cout << "Connectivity" << std::endl;
                 for (int i = 0; i < size(); i ++)
                 {
-                    std::cout << "A " << get(i)[0] << " B " << get(i)[1] << std::endl;
+                    std::cout << i << ": A " << get(i)[0] << " B " << get(i)[1] << std::endl;
                 }
             }
 

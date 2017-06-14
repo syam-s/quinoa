@@ -10,6 +10,7 @@ namespace AMR {
 
     class node_store_t
     {
+
         private:
             coord_type* m_x;
             coord_type* m_y;

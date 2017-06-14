@@ -98,6 +98,15 @@ namespace AMR {
             {
                 refinement_state_changed = t;
             }
+
+            void replace(size_t old_id, size_t new_id)
+            {
+                // Swap id out in map
+                auto i = marked_refinements.find(old_id);
+                auto value = i->second;
+                marked_refinements.erase(i);
+                marked_refinements[new_id] = value;
+            }
     };
 }
 

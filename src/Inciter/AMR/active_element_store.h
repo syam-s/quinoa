@@ -42,6 +42,12 @@ namespace AMR {
                 }
                 return false;
             }
+
+            void replace(size_t old_id, size_t new_id)
+            {
+                erase(old_id);
+                add(new_id);
+            }
     };
 }
 

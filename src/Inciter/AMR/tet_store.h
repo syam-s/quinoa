@@ -14,7 +14,7 @@ namespace AMR {
 
     class tet_store_t {
         private:
-            // TODO: Remove this data structure!
+            // TODO: Remove this (center_tets) data structure!
             // This is a horrendous code abuse, and I'm sorry. I'm fairly
             // certain we'll be re-writing how this detection is done and just
             // wanted a quick-fix so I could move on :(
@@ -41,21 +41,28 @@ namespace AMR {
             // TODO: Make this private at some point
             AMR::marked_refinements_store_t marked_refinements;
 
-            // TODO: Document this
+            /**
+             * @brief function to return the number of tets stored
+             *
+             * @return Num of tets
+             */
             size_t size() {
                 return tets.size();
             }
 
+            // TODO: Document this
             bool is_active(size_t id)
             {
                 return active_elements.exists(id);
             }
 
+            // TODO: Document this
             Refinement_Case get_refinement_case(size_t id)
             {
                 return data(id).refinement_case;
             }
 
+            // TODO: Document this
             Refinement_State& data(size_t id)
             {
                 return master_elements.get(id);
@@ -152,18 +159,22 @@ namespace AMR {
                     size_t id,
                     tet_t nodes,
                     Refinement_Case refinement_case,
-                    size_t parent_id)
+                    size_t parent_id
+            )
             {
+
+                std::cout << "id " << id << " parent " << parent_id << std::endl;
 
                 add(id, nodes, refinement_case);
 
+                // Set parent id
+                master_elements.get(id).parent_id = parent_id;
+
+                master_elements.get(id).refinement_level =
+                    master_elements.get(parent_id).refinement_level+1;
+
                 // Deal with updating parent
-
-                // TODO: Is it bad form the reach through an object like that? (Law of Demeter)
-                master_elements.get(parent_id).children.push_back(id);
-
-                master_elements.get(parent_id).num_children++;
-                assert( master_elements.get(parent_id).num_children <= 8);
+                master_elements.add_child(parent_id, id);
 
                 trace_out << "Added child " << id << " (" <<
                     master_elements.get(parent_id).num_children << ")" << std::endl;
@@ -176,29 +187,25 @@ namespace AMR {
              * @param nodes A list of the nodes which form th etet
              * @param refinement_case The refinement case which caused this tet
              * to be generated
-             */
-            void add(size_t id, tet_t nodes, Refinement_Case refinement_case) {
-
+            */
+            void add(size_t id, tet_t nodes, Refinement_Case refinement_case)
+            {
                 store_tet(id, nodes);
 
+                size_t refinement_level = 0;
+                size_t parent_id = 0;
+
                 // Add to master list
-                master_elements.add(id, refinement_case, 0, 0);
+                master_elements.add(id, refinement_case, refinement_level, parent_id);
 
                 // The new master element should start as active
                 active_elements.add(id);
             }
 
-            void add(tet_t nodes, Refinement_Case refinement_case) {
-
+            void add(tet_t nodes, Refinement_Case refinement_case)
+            {
                 size_t id = id_generator.get_next_tet_id();
-
-                store_tet(id, nodes);
-
-                // Add to master list
-                master_elements.add(id, refinement_case, 0, 0);
-
-                // The new master element should start as active
-                active_elements.add(id);
+                add(id, nodes, refinement_case);
             }
 
             void add(
@@ -540,30 +547,16 @@ namespace AMR {
 
                 for (size_t j = 0; j < NUM_TET_EDGES; j++)
                 {
-                    std::string key = edge_list[j];
-                    std::vector<std::string> nodes = util::split(key,KEY_DELIM);
+                    edge_t edge = edge_list[j];
 
-                    size_t A =  std::stoul (nodes[0],nullptr,0);
-                    size_t B =  std::stoul (nodes[1],nullptr,0);
+                    size_t A = edge.first();
+                    size_t B = edge.second();
 
                     Edge_Refinement er = Edge_Refinement(A, B, 0.0, false,
                             false, false, Edge_Lock_Case::unlocked);
 
-                    edge_store.add(key, er);
+                    edge_store.add(edge, er);
                 }
-            }
-
-            /**
-             * @brief function to generate edge_ids (not strings) for
-             * a given tet_id
-             *
-             * @param tet The tet_id for which the edge_ids will be generated
-             *
-             * @return The edge_list_ids_t of edge ids
-             */
-            edge_list_ids_t generate_edge_ids(size_t tet) {
-                edge_list_t edge_list = generate_edge_keys(tet);
-                return AMR::edge_store_t::generate_edge_ids_from_edge_list(edge_list);
             }
 
             /**
@@ -624,9 +617,9 @@ namespace AMR {
                 edge_list_t edge_list = generate_edge_keys(tet_id);
                 for (size_t k = 0; k < NUM_TET_EDGES; k++)
                 {
-                    std::string key = edge_list[k];
-                    edge_store.mark_for_refinement(key);
-                    trace_out << "Marking edge " << key << " for refine " << std::endl;
+                    edge_t edge = edge_list[k];
+                    edge_store.mark_for_refinement(edge);
+                    trace_out << "Marking edge " << edge << " for refine " << std::endl;
                 }
             }
 
@@ -657,7 +650,64 @@ namespace AMR {
                 }
             }
 
+            child_id_list_t generate_child_ids(size_t parent_id, size_t count = MAX_CHILDREN)
+            {
+                return id_generator.generate_child_ids(parent_id, count);
+            }
+            size_t get_child_id(size_t parent_id, size_t offset)
+            {
+                return master_elements.get_child_id(parent_id, offset);
+            }
 
+            size_t get_parent_id(size_t id)
+            {
+                return master_elements.get_parent(id);
+            }
+
+            void update_id(size_t old_id, size_t new_id)
+            {
+                // General map replacement idiom. VERY slow. Map keys are just
+                // not meant to be changed..basically guarntees a rebalance
+                //auto i = m.find(old);
+                //value = i->second;
+                //m.erase(i);
+                //m[new_id] = value;
+
+                // Update master_elements
+                // TODO: need to search children too
+                master_elements.replace(old_id, new_id);
+
+                // Update active elements
+                active_elements.replace(old_id, new_id);
+
+                // Update tets
+                replace(old_id, new_id);
+
+                // Update marked_refinements
+                marked_refinements.replace(old_id, new_id);
+
+                // Update edges..
+                // TODO: This
+            }
+
+            void replace(size_t old_id, size_t new_id)
+            {
+                // Swap id out in map
+                auto i = tets.find(old_id);
+                auto value = i->second;
+                tets.erase(i);
+                tets[new_id] = value;
+            }
+
+            /*
+            size_t find_intermediate_nodes(size_t A, size_t B)
+            {
+                // Find the edge that forms
+                // Find a (any?) tet which uses that edge
+                // See if it has children
+                return edge_store.find_intermediate_nodes(A, B);
+            }
+            */
     };
 }
 

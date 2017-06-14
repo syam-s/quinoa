@@ -36,7 +36,6 @@ namespace AMR {
             AMR::node_store_t node_store;
 
             AMR::refinement_t *refiner;
-            AMR::derefinement_t *derefiner;
 
             void init_node_store(coord_type* m_x, coord_type* m_y, coord_type* m_z, size_t* graph_size)
             {
@@ -52,11 +51,10 @@ namespace AMR {
                 //init(); // TODO: This also needs to call init if you want node support to work
             }
 
-            void init(std::vector<size_t> m_tetinpoel, size_t count) {
-                node_connectivity.fill_initial_nodes(count);
+            void init(std::vector<size_t> m_tetinpoel, size_t num_nodes) {
+                node_connectivity.fill_initial_nodes(num_nodes);
 
                 refiner = new AMR::refinement_t(&tet_store, &node_connectivity);
-                derefiner = new AMR::derefinement_t(&tet_store);
 
                 consume_tets(m_tetinpoel);
                 tet_store.generate_edges();
@@ -318,11 +316,11 @@ namespace AMR {
                                 refiner->refine_one_to_eight(tet_id);
                                 break;
                             case AMR::Refinement_Case::two_to_eight:
-                                parent_id = AMR::id_generator_t::get_parent_id(tet_id);
+                                parent_id = tet_store.get_parent_id(tet_id);
                                 round_two.insert(parent_id);
                                 break;
                             case AMR::Refinement_Case::four_to_eight:
-                                parent_id = AMR::id_generator_t::get_parent_id(tet_id);
+                                parent_id = tet_store.get_parent_id(tet_id);
                                 round_two.insert(parent_id);
                                 break;
                             case AMR::Refinement_Case::initial_grid:
@@ -345,11 +343,11 @@ namespace AMR {
 
                     if (element.num_children == 2)
                     {
-                        derefiner->derefine_two_to_one(i);
+                        refiner->derefine_two_to_one(i);
                     }
                     else if (element.num_children == 4)
                     {
-                        derefiner->derefine_four_to_one(i);
+                        refiner->derefine_four_to_one(i);
                     }
                     else {
                         std::cout << "num children " << element.num_children << std::endl;
@@ -431,7 +429,7 @@ namespace AMR {
                         // For this face list, see which ones need refining
                         for (size_t k = 0; k < NUM_FACE_NODES; k++)
                         {
-                            std::string key = face_edge_list[k];
+                            edge_t key = face_edge_list[k];
                             if (tet_store.edge_store.get(key).needs_refining == true)
                             {
                                 num_face_refine_edges++;
@@ -466,7 +464,7 @@ namespace AMR {
 
                         for (size_t k = 0; k < NUM_FACE_NODES; k++)
                         {
-                            std::string key = face_edge_list[k];
+                            edge_t key = face_edge_list[k];
                             tet_store.edge_store.mark_for_refinement(key);
                         }
 
@@ -500,7 +498,7 @@ namespace AMR {
                 edge_list_t edge_list = tet_store.generate_edge_keys(tet_id);
                 for (size_t k = 0; k < NUM_TET_EDGES; k++)
                 {
-                    std::string key = edge_list[k];
+                    edge_t key = edge_list[k];
                     if (tet_store.edge_store.get(key).lockCase == AMR::Edge_Lock_Case::unlocked)
                     {
                         trace_out << "LOCKING! " << key << std::endl;
@@ -515,7 +513,7 @@ namespace AMR {
                 edge_list_t edge_list = tet_store.generate_edge_keys(tet_id);
                 for (size_t k = 0; k < NUM_TET_EDGES; k++)
                 {
-                    std::string key = edge_list[k];
+                    edge_t key = edge_list[k];
 
                     tet_store.edge_store.unmark_for_refinement(key);
                     trace_out << "Deactivating " << key << std::endl;
@@ -540,7 +538,7 @@ namespace AMR {
                 int num_active_edges = 0;
                 for (size_t k = 0; k < NUM_TET_EDGES; k++)
                 {
-                    std::string key = edge_list[k];
+                    edge_t key = edge_list[k];
                     if (tet_store.edge_store.get(key).lockCase != AMR::Edge_Lock_Case::unlocked)
                     {
                         tet_store.edge_store.unmark_for_refinement(key);
@@ -566,7 +564,7 @@ namespace AMR {
                     // For this face list, see which ones need refining
                     for (size_t k = 0; k < NUM_FACE_NODES; k++)
                     {
-                        std::string key = face_edge_list[k];
+                        edge_t key = face_edge_list[k];
                         if (tet_store.edge_store.get(key).needs_refining == true)
                         {
                             num_face_refine_edges++;
@@ -617,7 +615,7 @@ namespace AMR {
 
                     for (size_t k = 0; k < NUM_FACE_NODES; k++)
                     {
-                        std::string key = face_edge_list[k];
+                        edge_t key = face_edge_list[k];
                         tet_store.edge_store.mark_for_refinement(key);
                     }
 
@@ -660,7 +658,7 @@ namespace AMR {
 
                 for (size_t k = 0; k < NUM_TET_EDGES; k++)
                 {
-                    std::string key = edge_list[k];
+                    edge_t key = edge_list[k];
                     trace_out << "Key " << key << std::endl;
 
                     // Count intermediate edges
@@ -761,12 +759,12 @@ namespace AMR {
                 // "Identify parent element iparent"
                 // TODO: WE should either always use the id to fetch, or always do the data lookup
                 //size_t parent_id = master_elements.get_parent(tet_id);
-                size_t parent_id = AMR::id_generator_t::get_parent_id(tet_id);
+                size_t parent_id = tet_store.get_parent_id(tet_id);
 
                 trace_out << "Parent id = " << parent_id << std::endl;
 
                 // NOTE: This implies comms when we use these ids?
-                AMR::child_list_t children = tet_store.data(parent_id).children;
+                child_id_list_t children = tet_store.data(parent_id).children;
 
                 // "Do for each child element ielement
                     // Activate all non-locked edges
@@ -778,7 +776,7 @@ namespace AMR {
                     edge_list_t edge_list = tet_store.generate_edge_keys(children[i]);
                     for (size_t k = 0; k < NUM_TET_EDGES; k++)
                     {
-                        std::string key = edge_list[k];
+                        edge_t key = edge_list[k];
                         trace_out << "Compat 3 " << key << std::endl;
                         if (tet_store.edge_store.get(key).lockCase == AMR::Edge_Lock_Case::unlocked) {
                             trace_out << "Compat 3 marking edge " << key << std::endl;

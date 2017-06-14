@@ -13,6 +13,9 @@ namespace AMR {
     class refinement_t {
         private:
 
+            const size_t DEFAULT_REFINEMENT_LEVEL = 0; //TODO: Is this in the right place?
+            const size_t MIN_REFINEMENT_LEVEL = DEFAULT_REFINEMENT_LEVEL;
+
             // TODO: Tidy up edge store references here
             tet_store_t* tet_store;
             node_connectivity_t* node_connectivity;
@@ -23,6 +26,13 @@ namespace AMR {
 
             refinement_t(tet_store_t* ts, node_connectivity_t* ns) : tet_store(ts), node_connectivity(ns)
             {
+            }
+
+            // TODO: Document this
+            child_id_list_t generate_child_ids(size_t parent_id, size_t count = MAX_CHILDREN)
+            {
+                //return morton_id_generator_t::get_children_ids(parent_id);
+                return tet_store->generate_child_ids(parent_id, count);
             }
 
             /**
@@ -108,20 +118,6 @@ namespace AMR {
                 trace_out << "Refining tet_id " << tet_id << " 1:2 along edge "
                     << edge_node_A_id << " - " << edge_node_B_id << std::endl;
 
-                edge_list_t edge_list = tet_store->generate_edge_keys(tet_id);
-                trace_out << "edges:" << std::endl;
-                for (size_t k = 0; k < NUM_TET_EDGES; k++)
-                {
-                    std::string key = edge_list[k];
-                    trace_out << " " << key << " = " <<
-                        tet_store->edge_store.get(key).needs_refining << std::endl;
-                }
-
-                // Cut an edge in half, creating two smaller tets
-                //coordinate_t edge_node_A = node_connectivity->id_to_coordinate(edge_node_A_id);
-                //coordinate_t edge_node_B = node_connectivity->id_to_coordinate(edge_node_B_id);
-
-                size_t id = tet_id_to_node_id(tet_id, 0);
                 //coordinate_t original_tet_c = node_connectivity->id_to_coordinate(id);
 
                 tet_t original_tet = tet_store->get(tet_id);
@@ -160,8 +156,10 @@ namespace AMR {
                 tet_store->edge_store.split(edge_node_A_id, edge_node_B_id, new_node_id,
                         Edge_Lock_Case::intermediate);
 
-                size_t first_child_id = id_generator_t::get_child_id(tet_id, 0);
-                size_t second_child_id = id_generator_t::get_child_id(tet_id, 1);
+                child_id_list_t child_list = generate_child_ids(tet_id, 2);
+
+                size_t first_child_id = child_list[0];
+                size_t second_child_id = child_list[1];
 
                 // Add the two new tets to the system
                 size_t new_tet_id = first_child_id;
@@ -222,15 +220,15 @@ namespace AMR {
                     // For this face list, see which ones need refining
                     for (size_t k = 0; k < NUM_FACE_NODES; k++)
                     {
-                        std::string key = face_edge_list[k];
-                        if (tet_store->edge_store.get(key).needs_refining == true)
+                        edge_t edge = face_edge_list[k];
+                        if (tet_store->edge_store.get(edge).needs_refining == true)
                         {
                             num_face_refine_edges++;
                         }
 
                         // Check for locked edges
                             // This case only cares about faces with no locks
-                        if (tet_store->edge_store.lock_case(key) != Edge_Lock_Case::unlocked)
+                        if (tet_store->edge_store.lock_case(edge) != Edge_Lock_Case::unlocked)
                         {
                             // Abort this face
                             num_face_refine_edges = 0;
@@ -298,15 +296,6 @@ namespace AMR {
                     face_ids[2] << ", " <<
                     std::endl;
 
-                edge_list_t edge_list = tet_store->generate_edge_keys(tet_id);
-                trace_out << "edges:" << std::endl;
-                for (size_t k = 0; k < NUM_TET_EDGES; k++)
-                {
-                    std::string key = edge_list[k];
-                    trace_out << " " << key << " = " <<
-                        tet_store->edge_store.get(key).needs_refining << std::endl;
-                }
-
                 size_t A = face_ids[0];
                 size_t B = face_ids[1];
                 size_t C = face_ids[2];
@@ -356,7 +345,8 @@ namespace AMR {
                 // AC BC C D
                 // AB B BC D
 
-                child_id_list_t child = id_generator_t::get_children_ids(tet_id);
+                size_t num_children = 4;
+                child_id_list_t child = generate_child_ids(tet_id, num_children);
 
                 // Outsides
                 tet_store->add(child[0], AB , AC, A, D, Refinement_Case::one_to_four, tet_id);
@@ -475,7 +465,8 @@ namespace AMR {
                 // AC AD CD BD - ACD
                 //
 
-                child_id_list_t child = id_generator_t::get_children_ids(tet_id);
+                // TODO: This is actually generating IDs not trying to get them
+                child_id_list_t child = generate_child_ids(tet_id);
 
                 // This order should give a positive Jacobian
                 tet_store->add(child[0], A, AB, AC, AD, Refinement_Case::one_to_eight, tet_id);
@@ -556,14 +547,12 @@ namespace AMR {
                 bool found_break = false;
                 for (size_t k = 0; k < NUM_TET_EDGES; k++)
                 {
-                    std::string key = edge_list[k];
-                    if (tet_store->edge_store.get(key).needs_refining == true)
+                    edge_t edge = edge_list[k];
+
+                    if (tet_store->edge_store.get(edge).needs_refining == true)
                     {
-                        // Found the singular edge
-                        std::vector<std::string> nodes = util::split(key,KEY_DELIM);
-                        // ed
-                        returned_nodes[0] =  std::stoul (nodes[0],nullptr,0);
-                        returned_nodes[1] =  std::stoul (nodes[1],nullptr,0);
+                        returned_nodes[0] = edge.first();
+                        returned_nodes[1] = edge.second();
 
                         trace_out << "1:2 needs to be split on " <<
                             returned_nodes[0] << " and " <<
@@ -591,20 +580,194 @@ namespace AMR {
                 for (size_t k = 0; k < NUM_TET_EDGES; k++)
                 {
                     // If it contains that node id, mark it using lock_case
-                    std::string key = edge_list[k];
-                    std::vector<std::string> nodes = util::split(key,KEY_DELIM);
+                    edge_t edge = edge_list[k];
 
-                    size_t edge_node_A_id =  std::stoul (nodes[0],nullptr,0);
-                    size_t edge_node_B_id =  std::stoul (nodes[1],nullptr,0);
+                    size_t edge_node_A_id = edge.first();
+                    size_t edge_node_B_id = edge.second();
 
                     if ((edge_node_A_id == node_id) || (edge_node_B_id == node_id)) {
-                        trace_out << "Marking " << key << " as lock case " <<
-                            lock_case << std::endl;
-
-                        tet_store->edge_store.get(key).lockCase = lock_case;
+                        tet_store->edge_store.get(edge).lockCase = lock_case;
                     }
                 }
             }
+
+            ///// DEREFINEMENT STARTS HERE /////
+            /**
+             * @brief Function to iterate over children and remove them
+             *
+             * @param parent_id Id of the parent for whom you will delete the
+             * children
+             */
+            void derefine_children(size_t parent_id)
+            {
+                // For a given tet_id, find and delete its children
+                Refinement_State& parent = tet_store->data(parent_id);
+                for (auto c : parent.children)
+                {
+                    trace_out << "Derefine child " << c << std::endl;
+
+                    tet_store->erase(c);
+                    parent.num_children--; // Could directly set to 0
+                }
+                parent.children.clear();
+            }
+
+            /**
+             * @brief Common code for derefinement. Deactives the children and
+             * actives the parent
+             *
+             * @param parent_id The id of the parent
+             */
+            void generic_derefine(size_t parent_id)
+            {
+                derefine_children(parent_id);
+                tet_store->activate(parent_id);
+            }
+
+            // TODO: Document This.
+            void derefine_two_to_one(size_t parent_id)
+            {
+                delete_intermediates_of_children(parent_id);
+                generic_derefine(parent_id);
+            }
+
+            // TODO: Document This.
+            void derefine_four_to_one(size_t parent_id)
+            {
+                delete_intermediates_of_children(parent_id);
+                generic_derefine(parent_id);
+            }
+
+            // TODO: Document This.
+            void derefine_eight_to_one(size_t parent_id)
+            {
+                generic_derefine(parent_id);
+
+                // Delete the center edges
+                    // If edge isn't in the parent, delete it? Is there a better way?
+                edge_list_t parent_edges = tet_store->generate_edge_keys(parent_id);
+
+                Refinement_State& parent = tet_store->data(parent_id);
+                for (auto c : parent.children)
+                {
+                    edge_list_t child_edges = tet_store->generate_edge_keys(c);
+                    delete_non_matching_edges( child_edges, parent_edges);
+                }
+            }
+
+            // TODO: Document This.
+            void derefine_four_to_two(size_t parent_id)
+            {
+                assert(0);
+            }
+
+            // TODO: Document This.
+            void derefine_eight_to_two(size_t parent_id)
+            {
+                assert(0);
+            }
+
+            // TODO: Document This.
+            void derefine_eight_to_four(size_t parent_id)
+            {
+                assert(0);
+            }
+
+            /**
+             * @brief Loop over children and delete all intermediate edges
+             *
+             * @param parent_id Id of parent
+             */
+            void delete_intermediates_of_children(size_t parent_id)
+            {
+                Refinement_State& parent = tet_store->data(parent_id);
+                for (auto c : parent.children)
+                {
+                    delete_intermediates(c);
+                }
+            }
+
+            // TODO: Document this
+            void delete_intermediates(size_t tet_id)
+            {
+                edge_list_t edge_list = tet_store->generate_edge_keys(tet_id);
+                for (size_t k = 0; k < NUM_TET_EDGES; k++)
+                {
+                    edge_t edge = edge_list[k];
+                    // accept this code may try delete an edge which has already gone
+                    if (tet_store->edge_store.exists(edge)) {
+                        if (tet_store->edge_store.get(edge).lockCase == Edge_Lock_Case::intermediate)
+                        {
+                            tet_store->edge_store.erase(edge);
+                        }
+                    }
+                }
+            }
+
+            /**
+             * @brief If edge in candidate is not present in basis, delete the
+             * edge (candidate) from the main edge store
+             *
+             * @param candidate The edge list which is to be searched and deleted
+             * @param basis The edge list to check against
+             */
+            void delete_non_matching_edges(edge_list_t candidate, edge_list_t basis)
+            {
+                trace_out << "Looking for edges to delete" << std::endl;
+
+                // TODO: Sanity check this now we changed to edge_t
+
+                // Loop over the edges in each child. Look over the basis and
+                // if we can't find it, delete it
+                for (size_t k = 0; k < NUM_TET_EDGES; k++)
+                {
+                    edge_t search_key = candidate[k];
+
+                    // Search the basis for it
+                    bool found_it = false;
+
+                    for (size_t l = 0; l < NUM_TET_EDGES; l++)
+                    {
+                        edge_t key = basis[l];
+                        if (search_key == key)
+                        {
+                            found_it = true;
+                        }
+                    }
+
+                    // If we didn't find it, delete it
+                    if (!found_it)
+                    {
+                        // Delete it
+                        tet_store->edge_store.erase(search_key);
+                    }
+                }
+            }
+
+
+            /**
+             * @brief function to detect when an invalid derefinement is
+             * invoked
+             *
+             * @param tet_id Id the of the tet which will be de-refined
+             *
+             * @return A bool stating if the tet can be validly de-refined
+             */
+            bool check_allowed_derefinement(size_t tet_id)
+            {
+                Refinement_State& master_element = tet_store->data(tet_id);
+
+                // Check this won't take us past the max refinement level
+                if (master_element.refinement_level <= MIN_REFINEMENT_LEVEL)
+                {
+                    return false;
+                }
+
+                // If we got here, we didn't detect anything which tells us not
+                // to
+                return true;
+            }
+
 
 
     };

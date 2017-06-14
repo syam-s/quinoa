@@ -294,37 +294,69 @@ namespace inciter {
         //!   result of the flattening is thus a simpler data structure that is no
         //!   longer categorized by (or associated to) chares.
         void flatten() {
+
           // Optionally refine mesh if requested
           const auto ir = g_inputdeck.get< tag::selected, tag::initialamr >();
           if (ir == tk::ctr::InitialAMRType::UNIFORM) refine();
+
           // Make sure we are not fed garbage
           Assert( m_chinpoel.size() ==
                   static_cast< std::size_t >( chareDistribution()[1] ),
                   "Global mesh nodes ids associated to chares on PE " +
                   std::to_string( CkMyPe() ) + " is incomplete" );
+
           // Collect chare IDs we own associated to old global mesh node IDs
-          for (const auto& c : m_chinpoel)
-            for (auto p : c.second)
+          for (const auto& c : m_chinpoel) {
+            for (auto p : c.second) {
               m_nodechares[p].push_back( c.first );
+            }
+          }
+
           // Make chare IDs (associated to old global mesh node IDs) unique
-          for (auto& c : m_nodechares) tk::unique( c.second );
+          for (auto& c : m_nodechares) {
+              tk::unique( c.second );
+          }
+
           // Collect chare IDs we own associated to edges
           for (const auto& c : m_chedgenodes)
+          {
             for (const auto& e : c.second)
+            {
               m_edgechares[ e.first ].push_back( c.first );
+            }
+          }
+
           // Make chare IDs (associated to edges) unique
-          for (auto& c : m_edgechares) tk::unique( c.second );
+          for (auto& c : m_edgechares)
+          {
+              tk::unique( c.second );
+          }
+
           // Flatten node IDs of elements our chares operate on
           for (const auto& c : m_chinpoel)
+          {
             for (auto i : c.second)
+            {
               m_nodeset.insert( i );
+            }
+          }
+
           // Flatten edges of elements our chares operate on
           for (const auto& c : m_chedgenodes)
+          {
             for (const auto& e : c.second)
+            {
+                // TODO: Do we need to track edgeset too?
               m_edgeset.insert( e.first );
+            }
+          }
+
           // send progress report to host
           if ( g_inputdeck.get< tag::cmd, tag::feedback >() )
+          {
             m_host.peflattened();
+          }
+
           // Signal host that we are ready for computing the communication map,
           // required for parallel distributed global mesh node reordering
           signal2host_flattened( m_host );
@@ -410,6 +442,7 @@ namespace inciter {
                 if (s != c) sch[ s ].insert( h.first );
             }
           }
+
           // Store the edges associated to chare IDs bordering the mesh chunk held
           // by and associated to chare IDs we own
           for (const auto& h : ce) {
@@ -560,9 +593,11 @@ namespace inciter {
         //! \brief Unique global node IDs chares on our PE will contribute to in a
         //!   linear system
         std::set< std::size_t > m_nodeset;
+
         //! \brief Unique global edges whose nodes chares on our PE will contribute
         //!   to in a linear system
         tk::UnsMesh::Edges m_edgeset;
+
         //! \brief Map associating new node IDs (as in producing contiguous-row-id
         //!   linear system contributions) as map-values to old node IDs (as in
         //!   file) as map-keys
@@ -583,6 +618,7 @@ namespace inciter {
         std::unordered_map< int,
                 std::unordered_map< std::size_t, std::size_t > > m_chfilenodes;
 
+        // TODO: Is this node id, or chare id? Node id like carrier work item?!
         //! \brief Maps associating new node IDs (as in producing contiguous-row-id
         //!   linear system contributions)to edges (a pair of old node IDs) in
         //!   tk::UnsMesh::EdgeNodes maps, associated to and categorized by chares.
@@ -607,6 +643,7 @@ namespace inciter {
         //! \details Note that a single edge can be associated to multiple chare IDs
         //!   as multiple chares can contribute to a single edge.
         tk::UnsMesh::EdgeChares m_edgechares;
+
         //! \brief Global mesh node IDs associated to chare IDs bordering the mesh
         //!   chunk held by (and associated to) chare IDs this PE owns
         //! \details msum: (M)esh chunks (S)urrounding (M)esh chunks storing mesh
@@ -910,16 +947,13 @@ namespace inciter {
         }
 
         //! Uniformly refine our mesh replacing each tetrahedron with 8 new ones
-        void refine() {
+        void refine()
+        {
 
             generate_compact_inpoel();
 
             // Create AMR object
-            size_t count = m_tetinpoel.size() / 4; // TODO: replace this magic number
             AMR::mesh_adapter_t* mesh_adapter = new AMR::mesh_adapter_t();
-            mesh_adapter->init(m_tetinpoel, count);
-
-            mesh_adapter->uniform_refinement();
 
             // Generate unique edges (nodes connected to nodes)?
 
@@ -928,8 +962,12 @@ namespace inciter {
             auto minmax = std::minmax_element(begin(m_tetinpoel), end(m_tetinpoel));
 
             std::array<std::size_t, 2> ext{{*minmax.first, *minmax.second}};
+            auto nnode = ext[1] - ext[0] + 1;
 
-            std::cout << "Ext low " << ext[0] << " high " << ext[1] << std::endl;
+            mesh_adapter->init(m_tetinpoel, nnode);
+
+            // Do uniform refinement
+            mesh_adapter->uniform_refinement();
 
             // Perform shift
             for (auto &i : m_tetinpoel) {
@@ -950,8 +988,6 @@ namespace inciter {
 
             for (auto &i : m_tetinpoel) i += ext[0];  // shift back node IDs
 
-            // TODO: Why is the computed like this?
-            auto nnode = ext[1] - ext[0] + 1;
 
             std::unordered_map<std::size_t, std::unordered_set<std::size_t> > star;
 
@@ -991,12 +1027,25 @@ namespace inciter {
                     const auto B = conn.second[e*4+1];
                     const auto C = conn.second[e*4+2];
                     const auto D = conn.second[e*4+3];
+                    // Look up the added node IDs based on old ids {A,B}
+                    // (vector)
+
+                    /*
                     const auto AB = tk::cref_find( edgenodes, {{ A,B }} );
                     const auto AC = tk::cref_find( edgenodes, {{ A,C }} );
                     const auto AD = tk::cref_find( edgenodes, {{ A,D }} );
                     const auto BC = tk::cref_find( edgenodes, {{ B,C }} );
                     const auto BD = tk::cref_find( edgenodes, {{ B,D }} );
                     const auto CD = tk::cref_find( edgenodes, {{ C,D }} );
+                    */
+
+                    const size_t AB = mesh_adapter->node_connectivity.find(A, B);
+                    const size_t AC = mesh_adapter->node_connectivity.find(A, C);
+                    const size_t AD = mesh_adapter->node_connectivity.find(A, D);
+                    const size_t BC = mesh_adapter->node_connectivity.find(B, C);
+                    const size_t BD = mesh_adapter->node_connectivity.find(B, D);
+                    const size_t CD = mesh_adapter->node_connectivity.find(C, D);
+
                     en[ {{A,B}} ] = AB;
                     en[ {{A,C}} ] = AC;
                     en[ {{A,D}} ] = AD;
@@ -1006,7 +1055,7 @@ namespace inciter {
                 }
             }
 
-            std::cout << "Nnode " << nnode << std::endl;
+            generate_compact_inpoel();
 
             delete mesh_adapter;
 
@@ -1018,78 +1067,109 @@ namespace inciter {
         //!   assign a new ordering to as well as those assigned new IDs by other
         //!   PEs have been reordered (and we contribute to) and we are ready (on
         //!   this PE) to compute our final result of the reordering.
-        void reordered() {
+        void reordered()
+        {
           // Free memory used by communication maps used to store nodes and
           // edge-nodes and associated PEs during reordering.
           tk::destroy( m_ncommunication );
           tk::destroy( m_ecommunication );
+
           // Free memory used by maps associating a list of chare IDs to old (as in
           // file) global mesh node IDs and to edges as no longer needed.
           tk::destroy( m_nodechares );
           tk::destroy( m_edgechares );
+
           // Construct maps associating old node IDs (as in file) to new node IDs
           // (as in producing contiguous-row-id linear system contributions)
           // associated to chare IDs (outer key).
-          for (const auto& c : m_chinpoel) {
+          for (const auto& c : m_chinpoel)
+          {
             auto& nodes = m_chfilenodes[ c.first ];
-            for (auto p : c.second) {
+            for (auto p : c.second)
+            {
               auto n = m_linnodes.find(p);
               if (n != end(m_linnodes)) nodes[ n->second ] = p;
             }
           }
+
           // Update node IDs of edges, i.e., the map values
           for (auto& c : m_chedgenodes)
-            for (auto& e : c.second)
-              e.second = tk::ref_find( m_linedges, e.first );
+          {
+              for (auto& e : c.second)
+              {
+                  // The node ids of m_linedges has changed, so update that ref into the edges
+                  size_t old = e.second;
+                  e.second = tk::ref_find( m_linedges, e.first );
+              }
+          }
 
-          if (!m_chedgenodes.empty()) {
+          // TODO: Do we need to maintain a mapping of his id to our id ?
+
+          if (!m_chedgenodes.empty())
+          {
 
             // Update chare-categorized element connectivities with new nodes and
-            // newly added edge-nodes during initial unifor mesh refinement
+            // newly added edge-nodes during initial uniform mesh refinement
             decltype(m_chinpoel) refinpoel;
-            for (const auto& chi : m_chinpoel) {
-              auto& ri = refinpoel[ chi.first ];
-              const auto& edgenodes = tk::cref_find( m_chedgenodes, chi.first );
-              for (std::size_t e=0; e<chi.second.size()/4; ++e) {
-                auto A = chi.second[e*4+0];
-                auto B = chi.second[e*4+1];
-                auto C = chi.second[e*4+2];
-                auto D = chi.second[e*4+3];
-                const auto nA = tk::cref_find( m_linnodes, A );
-                const auto nB = tk::cref_find( m_linnodes, B );
-                const auto nC = tk::cref_find( m_linnodes, C );
-                const auto nD = tk::cref_find( m_linnodes, D );
-                const auto AB = tk::cref_find( edgenodes, {{ A,B }} );
-                const auto AC = tk::cref_find( edgenodes, {{ A,C }} );
-                const auto AD = tk::cref_find( edgenodes, {{ A,D }} );
-                const auto BC = tk::cref_find( edgenodes, {{ B,C }} );
-                const auto BD = tk::cref_find( edgenodes, {{ B,D }} );
-                const auto CD = tk::cref_find( edgenodes, {{ C,D }} );
-                // update connectivity of our mesh chunk
-                std::vector< std::size_t > newelems{{ nA, AB, AC, AD,
-                                                            nB, BC, AB, BD,
-                                                            nC, AC, BC, CD,
-                                                            nD, AD, CD, BD,
-                                                            BC, CD, AC, BD,
-                                                            AB, BD, AC, AD,
-                                                            AB, BC, AC, BD,
-                                                            AC, BD, CD, AD }};
-                ri.insert( end(ri), begin(newelems), end(newelems) );
-              }
+
+            for (const auto& chi : m_chinpoel)
+            {
+
+                auto& ri = refinpoel[ chi.first ];
+                const auto& edgenodes = tk::cref_find( m_chedgenodes, chi.first );
+
+                for (std::size_t e=0; e<chi.second.size()/4; ++e)
+                {
+
+                    auto A = chi.second[e*4+0];
+                    auto B = chi.second[e*4+1];
+                    auto C = chi.second[e*4+2];
+                    auto D = chi.second[e*4+3];
+
+                    const auto nA = tk::cref_find( m_linnodes, A );
+                    const auto nB = tk::cref_find( m_linnodes, B );
+                    const auto nC = tk::cref_find( m_linnodes, C );
+                    const auto nD = tk::cref_find( m_linnodes, D );
+                    const auto AB = tk::cref_find( edgenodes, {{ A,B }} );
+                    const auto AC = tk::cref_find( edgenodes, {{ A,C }} );
+                    const auto AD = tk::cref_find( edgenodes, {{ A,D }} );
+                    const auto BC = tk::cref_find( edgenodes, {{ B,C }} );
+                    const auto BD = tk::cref_find( edgenodes, {{ B,D }} );
+                    const auto CD = tk::cref_find( edgenodes, {{ C,D }} );
+
+                    // update connectivity of our mesh
+                    std::vector< std::size_t > newelems
+                    {{
+                         nA, AB, AC, AD,
+                         nB, BC, AB, BD,
+                         nC, AC, BC, CD,
+                         nD, AD, CD, BD,
+                         BC, CD, AC, BD,
+                         AB, BD, AC, AD,
+                         AB, BC, AC, BD,
+                         AC, BD, CD, AD
+                    }};
+                    ri.insert( end(ri), begin(newelems), end(newelems) );
+                }
             }
+
             m_chinpoel = std::move( refinpoel );
 
             // Update chare-categorized mesh nodes surrounding our mesh chunk with
             // the reordered node IDs
             decltype(m_msum) newmsum;
-            for (const auto& c : m_msum) {
+
+            for (const auto& c : m_msum)
+            {
               auto& m = newmsum[ c.first ];
-              for (const auto& e : c.second) {
+              for (const auto& e : c.second)
+              {
                 auto& s = m[ e.first ];
                 for (auto n : e.second)
                   s.insert( tk::cref_find( m_linnodes, n ) );
               }
             }
+
             m_msum = std::move( newmsum );
 
             // Add newly added edge-nodes to chare-categorized mesh nodes
@@ -1227,6 +1307,7 @@ namespace inciter {
             if (!m_msum.empty()) msum = tk::cref_find( m_msum, cid );
             typename decltype(m_chedgenodes)::mapped_type edno;
             if (!m_chedgenodes.empty()) edno = tk::cref_find( m_chedgenodes, cid );
+
             // Create worker array element
             m_worker[ cid ].insert( m_host,
                                     m_linsysmerger,
