@@ -6,7 +6,7 @@
 #include <sstream>
 
 #include "Loggers.h"
-#include "Types.h"
+#include "types.h"
 
 namespace AMR {
     namespace util {
