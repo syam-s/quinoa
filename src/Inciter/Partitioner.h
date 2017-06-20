@@ -969,15 +969,13 @@ namespace inciter {
             // Do uniform refinement
             mesh_adapter->uniform_refinement();
 
+            // TODO: Do we need to replicate the shift?
+
+            /*
             // Perform shift
             for (auto &i : m_tetinpoel) {
                 i -= ext[0];
             }
-
-            // WTF Is all this shifting about?! Why do they move it forward
-            // then back?
-
-            // He shifts the nodes IDs so esup has sensible indexing.
 
             // TODO: Is there a reason we want to not enforce 0 based no ids
             // always? (i.e not put them back?)
@@ -987,7 +985,6 @@ namespace inciter {
             auto esup = tk::genEsup(m_tetinpoel, 4);
 
             for (auto &i : m_tetinpoel) i += ext[0];  // shift back node IDs
-
 
             std::unordered_map<std::size_t, std::unordered_set<std::size_t> > star;
 
@@ -1001,7 +998,6 @@ namespace inciter {
                     }
                 }
             }
-            tk::destroy(m_tetinpoel);
 
             // Starting node ID (on all PEs) while assigning new edge-nodes
             nnode = tk::ExodusIIMeshReader(g_inputdeck.get<tag::cmd, tag::io,
@@ -1014,6 +1010,9 @@ namespace inciter {
                     edgenodes[ {{ s.first, q }} ] = nnode++;
                 }
             }
+            */
+
+            tk::destroy(m_tetinpoel);
 
             // Generate maps associating new node IDs (as in producing
             // contiguous-row-id linear system contributions)to edges (a pair of old
