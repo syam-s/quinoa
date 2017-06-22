@@ -286,7 +286,9 @@ namespace inciter {
         }
 
         //! Acknowledge received node IDs
-        void recv() { if (--m_npe == 0) signal2host_distributed( m_host ); }
+        void recv() {
+            if (--m_npe == 0) signal2host_distributed( m_host );
+        }
 
         //! Prepare owned mesh node IDs for reordering
         //! \details The 'flatten' is used here as a concatenation of a data
