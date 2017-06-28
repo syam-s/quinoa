@@ -1,12 +1,13 @@
 #ifndef AMR_refinement_h
 #define AMR_refinement_h
 
+#include <algorithm>
+
 #include "tet_store.h"
 #include "node_connectivity.h"
 
 // TODO: make this have a base class to support multiple generator schemes
 // using the policy design pattern
-
 
 namespace AMR {
 

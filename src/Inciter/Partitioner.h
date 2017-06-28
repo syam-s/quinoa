@@ -297,10 +297,6 @@ namespace inciter {
         //!   longer categorized by (or associated to) chares.
         void flatten() {
 
-          // Optionally refine mesh if requested
-          const auto ir = g_inputdeck.get< tag::selected, tag::initialamr >();
-          if (ir == tk::ctr::InitialAMRType::UNIFORM) refine();
-
           // Make sure we are not fed garbage
           Assert( m_chinpoel.size() ==
                   static_cast< std::size_t >( chareDistribution()[1] ),
@@ -324,6 +320,7 @@ namespace inciter {
           {
             for (const auto& e : c.second)
             {
+                std::cout << "m_chedgenodes " << c.first << std::endl;
               m_edgechares[ e.first ].push_back( c.first );
             }
           }
@@ -352,6 +349,15 @@ namespace inciter {
               m_edgeset.insert( e.first );
             }
           }
+
+          // TODO: We can't just move this here, because of m_chedgenodes above
+          // This basically assumes edges are set, but they're not...
+          // What if I just update m_edgeset?
+          // Do I also need to update the m_chedgenodes stuff?
+
+          // Optionally refine mesh if requested
+          const auto ir = g_inputdeck.get< tag::selected, tag::initialamr >();
+          //if (ir == tk::ctr::InitialAMRType::UNIFORM) refine();
 
           // send progress report to host
           if ( g_inputdeck.get< tag::cmd, tag::feedback >() )

@@ -1,6 +1,9 @@
 #ifndef AMR_id_generator_h
 #define AMR_id_generator_h
 
+#include <limits>
+#include <cassert>
+
 // TODO: make this have a base class to support multiple generator schemes
 // using the policy design pattern
 namespace AMR {

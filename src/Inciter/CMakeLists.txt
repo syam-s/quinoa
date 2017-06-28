@@ -14,6 +14,7 @@ add_library(Inciter
             AMR/mesh_adapter.h
             AMR/util.cpp
             AMR/edge.cpp
+            AMR/mesh_adapter.cpp
             )
 
 addCharmModule( "transporter" "Inciter" )

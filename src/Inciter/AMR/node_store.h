@@ -1,6 +1,8 @@
 #ifndef AMR_node_store_h
 #define AMR_node_store_h
 
+#include <cmath>
+
 #include "types.h"
 #include "tet_store.h"
 

@@ -2,6 +2,7 @@
 #define AMR_types_h
 
 #include <array>
+#include <vector>
 #include <map>
 
 #include "../Base/Types.h"

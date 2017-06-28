@@ -2,6 +2,8 @@
 #define AMR_master_element_store_h
 
 #include <map>
+#include <algorithm>
+
 #include "Refinement_State.h"
 
 namespace AMR {
